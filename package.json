@@ -1,0 +1,25 @@
+{
+  "name": "ai-call-screening-system",
+  "version": "1.0.0",
+  "description": "Production-oriented AI-Powered Smart Call Screening and Routing System",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:all": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test:all": "npm --prefix backend test"
+  },
+  "keywords": [
+    "asterisk",
+    "telephony",
+    "ai",
+    "whisper",
+    "ollama",
+    "call-screening",
+    "sip",
+    "pjsip"
+  ],
+  "author": "Antigravity Development Team",
+  "license": "MIT"
+}
