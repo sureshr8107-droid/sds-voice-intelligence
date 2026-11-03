@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { FormField } from '../components/common/FormField';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithToken, isLoading, lastError, clearError } = useAuth();
+  const { login, loginWithToken, isLoading, lastError, clearError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -14,7 +14,7 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [sessionToken, setSessionToken] = useState('mock-admin-token');
-  const [authMode, setAuthMode] = useState<'token' | 'credentials'>('token');
+  const [authMode, setAuthMode] = useState<'token' | 'credentials'>('credentials');
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const destination = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/dashboard';
@@ -49,11 +49,10 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    // Backend POST /api/v1/auth/login is scheduled for Phase 5.
-    // In Phase 4, authentication operates via in-memory Bearer token verification against GET /api/v1/auth/me
-    setValidationError(
-      'Notice: Backend endpoint POST /api/v1/auth/login is pending Phase 5 implementation. Please use the "Session Token" tab to verify real server-side JWT / RBAC authorization against /api/v1/auth/me.'
-    );
+    const success = await login(email, password);
+    if (success) {
+      navigate(destination, { replace: true });
+    }
   };
 
   const handleQuickRoleSelect = (tokenValue: string) => {
@@ -88,7 +87,7 @@ export const LoginPage: React.FC = () => {
             }}
           >
             <Key size={14} className="me-1" />
-            <span>Session Token (Phase 4)</span>
+            <span>Session Token</span>
           </button>
           <button
             type="button"
@@ -240,8 +239,17 @@ export const LoginPage: React.FC = () => {
               className="btn btn-info w-100 py-2 text-dark fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm mt-4"
               disabled={isLoading}
             >
-              <LogIn size={16} />
-              <span>Sign In</span>
+              {isLoading ? (
+                <>
+                  <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={16} />
+                  <span>Sign In</span>
+                </>
+              )}
             </button>
           </form>
         )}

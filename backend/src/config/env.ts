@@ -17,6 +17,11 @@ const envSchema = z.object({
   FRONTEND_ORIGIN: z.string().default('http://localhost:5173'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   API_PREFIX: z.string().default('/api/v1'),
+  JWT_SECRET: z
+    .string()
+    .min(16, 'JWT_SECRET must be at least 16 characters long')
+    .default('sds-voice-intelligence-secure-jwt-secret-key-32-chars-min'),
+  JWT_EXPIRES_IN: z.string().default('24h'),
 
   // Future phase optional placeholders (validated if provided)
   SUPABASE_URL: z.string().url().optional(),

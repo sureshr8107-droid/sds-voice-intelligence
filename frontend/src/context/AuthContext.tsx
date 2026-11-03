@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AuthenticatedUser, UserRole } from '@call-screening/shared';
 import { AuthService } from '../services/authService';
 import { configureAuthInterceptor, NormalizedError } from '../services/apiClient';
+import { socketService } from '../services/socketService';
 
 interface AuthContextValue {
   user: AuthenticatedUser | null;
@@ -9,6 +10,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   lastError: NormalizedError | null;
+  login: (email: string, password: string) => Promise<boolean>;
   loginWithToken: (token: string) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
@@ -25,12 +27,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastError, setLastError] = useState<NormalizedError | null>(null);
 
   const logout = useCallback(() => {
+    // Terminate socket and revoke backend session
+    socketService.disconnect();
+    AuthService.logout().catch(() => {});
     setToken(null);
     setUser(null);
     setLastError(null);
   }, []);
 
-  // Configure Axios interceptor with in-memory getter and automatic 401 logout
+  // Configure Axios interceptor and Socket.IO connection on token change
   useEffect(() => {
     configureAuthInterceptor(
       () => token,
@@ -38,7 +43,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout();
       }
     );
+
+    if (token) {
+      socketService.connect(token);
+    } else {
+      socketService.disconnect();
+    }
   }, [token, logout]);
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<boolean> => {
+      setIsLoading(true);
+      setLastError(null);
+
+      const res = await AuthService.login({ email, password });
+      if (res.success && res.data) {
+        setToken(res.data.token);
+        setUser(res.data.user);
+        setLastError(null);
+        setIsLoading(false);
+        return true;
+      } else {
+        setToken(null);
+        setUser(null);
+        setLastError(
+          res.error || {
+            code: 'LOGIN_FAILED',
+            message: 'Authentication failed. Please check your credentials.',
+            timestamp: new Date().toISOString(),
+          }
+        );
+        setIsLoading(false);
+        return false;
+      }
+    },
+    []
+  );
 
   const loginWithToken = useCallback(
     async (rawToken: string): Promise<boolean> => {
@@ -101,12 +141,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: !!user,
       isLoading,
       lastError,
+      login,
       loginWithToken,
       logout,
       clearError,
       hasRole,
     }),
-    [user, token, isLoading, lastError, loginWithToken, logout, clearError, hasRole]
+    [user, token, isLoading, lastError, login, loginWithToken, logout, clearError, hasRole]
   );
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

@@ -20,7 +20,8 @@ export const CallbacksPage: React.FC = () => {
     setLoading(true);
     const res = await CallbackService.getCallbacks();
     if (res.success && res.data) {
-      setCallbacks(res.data);
+      const items = Array.isArray(res.data) ? res.data : (res.data as any).callbacks || [];
+      setCallbacks(items);
       setError(null);
     } else {
       setCallbacks([]);

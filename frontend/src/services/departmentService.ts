@@ -1,13 +1,7 @@
 import { apiClient, normalizeError, NormalizedError } from './apiClient';
-import { Department } from '@call-screening/shared';
+import { Department, CreateDepartmentRequest, UpdateDepartmentRequest } from '@call-screening/shared';
 
-export interface CreateDepartmentPayload {
-  name: string;
-  code: string;
-  description?: string;
-  primaryExtension?: string;
-  routingTimeoutSeconds?: number;
-}
+export type CreateDepartmentPayload = CreateDepartmentRequest;
 
 export class DepartmentService {
   static async getDepartments(): Promise<{
@@ -39,6 +33,18 @@ export class DepartmentService {
   ): Promise<{ success: boolean; data?: Department; error?: NormalizedError }> {
     try {
       const response = await apiClient.post<Department>('/departments', payload);
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: normalizeError(error) };
+    }
+  }
+
+  static async updateDepartment(
+    id: string,
+    payload: UpdateDepartmentRequest
+  ): Promise<{ success: boolean; data?: Department; error?: NormalizedError }> {
+    try {
+      const response = await apiClient.patch<Department>(`/departments/${id}`, payload);
       return { success: true, data: response.data };
     } catch (error) {
       return { success: false, error: normalizeError(error) };

@@ -1,6 +1,13 @@
 import { apiClient, normalizeError, NormalizedError } from './apiClient';
 import { StaffSummary, StaffExtension, StaffAvailability, AvailabilityStatus } from '@call-screening/shared';
 
+export interface StaffDetailResponse {
+  extension: StaffExtension;
+  profile: import('@call-screening/shared').UserProfile;
+  department: import('@call-screening/shared').Department;
+  availability?: StaffAvailability;
+}
+
 export class StaffService {
   static async getStaffMembers(): Promise<{
     success: boolean;
@@ -9,6 +16,19 @@ export class StaffService {
   }> {
     try {
       const response = await apiClient.get<StaffSummary[]>('/staff');
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: normalizeError(error) };
+    }
+  }
+
+  static async getStaffById(id: string): Promise<{
+    success: boolean;
+    data?: StaffDetailResponse;
+    error?: NormalizedError;
+  }> {
+    try {
+      const response = await apiClient.get<StaffDetailResponse>(`/staff/${id}`);
       return { success: true, data: response.data };
     } catch (error) {
       return { success: false, error: normalizeError(error) };

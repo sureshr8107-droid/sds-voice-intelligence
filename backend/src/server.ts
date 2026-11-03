@@ -2,9 +2,11 @@ import http from 'http';
 import { createApp } from './app';
 import { env } from './config/env';
 import { logger } from './utils/logger';
+import { initSocketServer } from './socket';
 
 const app = createApp();
 const server = http.createServer(app);
+const io = initSocketServer(server);
 
 const PORT = env.PORT;
 const HOST = env.HOST;

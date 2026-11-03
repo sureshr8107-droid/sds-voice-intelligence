@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
@@ -7,13 +8,29 @@ import { AuthService } from '../src/services/authService';
 
 vi.mock('../src/services/authService', () => ({
   AuthService: {
+    login: vi.fn(),
+    logout: vi.fn().mockResolvedValue({ success: true }),
     getCurrentUser: vi.fn(),
     verifyAdminAccess: vi.fn(),
     verifyStaffAccess: vi.fn(),
   },
 }));
 
-describe('Frontend Authentication Suite (Phase 4)', () => {
+vi.mock('../src/services/socketService', () => ({
+  socketService: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    isConnected: vi.fn().mockReturnValue(true),
+    onCallCreated: vi.fn().mockReturnValue(() => {}),
+    onCallUpdated: vi.fn().mockReturnValue(() => {}),
+    onCallStatusChanged: vi.fn().mockReturnValue(() => {}),
+    onCallRoutingUpdated: vi.fn().mockReturnValue(() => {}),
+    onStaffAvailabilityChanged: vi.fn().mockReturnValue(() => {}),
+    onCallbackCreated: vi.fn().mockReturnValue(() => {}),
+  },
+}));
+
+describe('Frontend Authentication Suite (Phase 5)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -29,7 +46,7 @@ describe('Frontend Authentication Suite (Phase 4)', () => {
 
     expect(screen.getByText(/SDS Voice Intelligence/i)).toBeInTheDocument();
     expect(screen.getByText(/Intelligent Calls. Smarter Connections./i)).toBeInTheDocument();
-    expect(screen.getByText(/Session Token \(Phase 4\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Session Token/i)).toBeInTheDocument();
     expect(screen.getByText(/Email \/ Password/i)).toBeInTheDocument();
   });
 
@@ -42,6 +59,10 @@ describe('Frontend Authentication Suite (Phase 4)', () => {
       </AuthProvider>
     );
 
+    // Switch to token tab
+    const tokenTab = screen.getByRole('button', { name: /Session Token/i });
+    fireEvent.click(tokenTab);
+
     const tokenInput = screen.getByLabelText(/Bearer Authentication Token/i);
     fireEvent.change(tokenInput, { target: { value: '' } });
 
@@ -49,11 +70,27 @@ describe('Frontend Authentication Suite (Phase 4)', () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Authentication token cannot be empty|Please provide a valid session/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Authentication token cannot be empty|Please provide a valid session/i)
+      ).toBeInTheDocument();
     });
   });
 
-  it('switches to email/password tab and shows Phase 5 credential pending notice upon submit', async () => {
+  it('authenticates credentials with email and password via POST /api/v1/auth/login', async () => {
+    vi.mocked(AuthService.login).mockResolvedValueOnce({
+      success: true,
+      data: {
+        token: 'mock-admin-token-jwt',
+        user: {
+          id: '22222222-2222-2222-2222-222222222001',
+          email: 'admin@institution.local',
+          fullName: 'Dr. Alice Sharma',
+          role: 'admin',
+        },
+        expiresIn: '24h',
+      },
+    });
+
     render(
       <AuthProvider>
         <BrowserRouter>
@@ -62,23 +99,20 @@ describe('Frontend Authentication Suite (Phase 4)', () => {
       </AuthProvider>
     );
 
-    const credsTab = screen.getByRole('button', { name: /Email \/ Password/i });
-    fireEvent.click(credsTab);
-
-    expect(screen.getByLabelText(/Institutional Email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('••••••••••••')).toBeInTheDocument();
-
     const emailInput = screen.getByLabelText(/Institutional Email/i);
     const passInput = screen.getByPlaceholderText('••••••••••••');
 
     fireEvent.change(emailInput, { target: { value: 'admin@institution.local' } });
-    fireEvent.change(passInput, { target: { value: 'securepassword123' } });
+    fireEvent.change(passInput, { target: { value: 'Admin@123' } });
 
     const submitBtn = screen.getByRole('button', { name: /Sign In/i });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Notice: Backend endpoint POST \/api\/v1\/auth\/login is pending Phase 5/i)).toBeInTheDocument();
+      expect(AuthService.login).toHaveBeenCalledWith({
+        email: 'admin@institution.local',
+        password: 'Admin@123',
+      });
     });
   });
 

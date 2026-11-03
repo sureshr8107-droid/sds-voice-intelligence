@@ -1,19 +1,112 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UserCheck,
   Radio,
   PhoneCall,
+  Wifi,
+  WifiOff,
+  Check,
+  PhoneForwarded,
 } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
-import { FeatureUnavailableBanner } from '../components/common/FeatureUnavailableBanner';
-import { AvailabilityStatus } from '@call-screening/shared';
+import { AvailabilityStatus, CallRecord } from '@call-screening/shared';
 import { useAuth } from '../context/AuthContext';
+import { StaffService } from '../services/staffService';
+import { CallService } from '../services/callService';
+import { socketService } from '../services/socketService';
 
 export const StaffConsolePage: React.FC = () => {
   const { user } = useAuth();
   const [availability, setAvailability] = useState<AvailabilityStatus>('available');
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [staffExtId, setStaffExtId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [socketConnected, setSocketConnected] = useState<boolean>(false);
+  const [incomingCalls, setIncomingCalls] = useState<CallRecord[]>([]);
+
+  // Find staff extension ID for current user
+  useEffect(() => {
+    const fetchStaffExt = async () => {
+      const res = await StaffService.getStaffExtensions();
+      if (res.success && res.data && user) {
+        const myExt = res.data.find((e) => e.profileId === user.id);
+        if (myExt) {
+          setStaffExtId(myExt.id);
+          const detailRes = await StaffService.getStaffById(myExt.id);
+          if (detailRes.success && detailRes.data?.availability) {
+            setAvailability(detailRes.data.availability.status);
+            setStatusMessage(detailRes.data.availability.customStatusMessage || '');
+          }
+        }
+      }
+    };
+    fetchStaffExt();
+  }, [user]);
+
+  // Socket.IO real-time event listener
+  useEffect(() => {
+    const checkConn = () => setSocketConnected(socketService.isConnected());
+    checkConn();
+    const interval = setInterval(checkConn, 2000);
+
+    const unsubCallCreated = socketService.onCallCreated((call) => {
+      if (call.status === 'awaiting_staff') {
+        setIncomingCalls((prev) => [call, ...prev.filter((c) => c.id !== call.id)]);
+      }
+    });
+
+    const unsubCallStatus = socketService.onCallStatusChanged((evt) => {
+      if (evt.currentStatus !== 'awaiting_staff') {
+        setIncomingCalls((prev) => prev.filter((c) => c.id !== evt.callId));
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubCallCreated();
+      unsubCallStatus();
+    };
+  }, []);
+
+  const handleAvailabilityChange = async (newStatus: AvailabilityStatus) => {
+    setAvailability(newStatus);
+    if (!staffExtId) return;
+
+    setIsSaving(true);
+    setSaveSuccess(false);
+    const res = await StaffService.updateAvailability(staffExtId, newStatus, statusMessage);
+    setIsSaving(false);
+    if (res.success) {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    }
+  };
+
+  const handleStatusMessageBlur = async () => {
+    if (!staffExtId) return;
+    setIsSaving(true);
+    await StaffService.updateAvailability(staffExtId, availability, statusMessage);
+    setIsSaving(false);
+  };
+
+  const handleAcceptCall = async (callId: string) => {
+    await CallService.updateCallStatus(callId, {
+      status: 'bridged',
+      assignedStaffId: staffExtId || undefined,
+      reason: 'Staff accepted call via reception console',
+    });
+    setIncomingCalls((prev) => prev.filter((c) => c.id !== callId));
+  };
+
+  const handleRejectCall = async (callId: string) => {
+    await CallService.updateCallStatus(callId, {
+      status: 'rejected',
+      reason: 'Staff rejected incoming call alert',
+    });
+    setIncomingCalls((prev) => prev.filter((c) => c.id !== callId));
+  };
 
   return (
     <div className="container-fluid px-0">
@@ -31,14 +124,6 @@ export const StaffConsolePage: React.FC = () => {
         }
       />
 
-      {/* Strict Phase 4 Notice: Telephony & Live Events */}
-      <FeatureUnavailableBanner
-        title="Telephony Bridge & Live Event Push Not Connected"
-        description="Real-time WebSocket / Socket.IO event push is scheduled for Phase 5. Softphone bridging (MicroSIP/Linphone via Asterisk ARI) will be activated in Phase 7. Live incoming call popups and automated 20s countdown timers are safely disabled until these phases."
-        plannedPhase="Phase 5 Socket.IO & Phase 7 Asterisk ARI"
-        variant="warning"
-      />
-
       <div className="row g-4">
         {/* Availability Control Card */}
         <div className="col-12 col-lg-4">
@@ -52,8 +137,13 @@ export const StaffConsolePage: React.FC = () => {
               <div className="mb-3 p-3 rounded-3 bg-dark border border-white border-opacity-10">
                 <div className="text-white fw-bold small">{user.fullName}</div>
                 <div className="text-muted small">{user.email}</div>
-                <div className="mt-2">
+                <div className="mt-2 d-flex align-items-center justify-content-between">
                   <StatusBadge type="role" value={user.role} />
+                  {saveSuccess && (
+                    <span className="badge bg-success bg-opacity-25 text-success small d-flex align-items-center gap-1">
+                      <Check size={12} /> Saved
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -66,7 +156,8 @@ export const StaffConsolePage: React.FC = () => {
                 id="availSelect"
                 className="form-select form-select-custom"
                 value={availability}
-                onChange={(e) => setAvailability(e.target.value as AvailabilityStatus)}
+                disabled={isSaving}
+                onChange={(e) => handleAvailabilityChange(e.target.value as AvailabilityStatus)}
               >
                 <option value="available">Available (Accepting Screened Calls)</option>
                 <option value="busy">Busy (Do Not Route)</option>
@@ -87,6 +178,7 @@ export const StaffConsolePage: React.FC = () => {
                 placeholder="e.g., In meeting until 3:00 PM"
                 value={statusMessage}
                 onChange={(e) => setStatusMessage(e.target.value)}
+                onBlur={handleStatusMessageBlur}
               />
             </div>
 
@@ -96,8 +188,11 @@ export const StaffConsolePage: React.FC = () => {
                 <StatusBadge type="availability" value={availability} />
               </div>
               <div className="d-flex align-items-center justify-content-between">
-                <span className="text-muted small">Softphone PBX:</span>
-                <span className="text-warning small fst-italic">Asterisk Unlinked (Phase 7)</span>
+                <span className="text-muted small">Socket.IO Push:</span>
+                <span className={`small d-flex align-items-center gap-1 ${socketConnected ? 'text-success' : 'text-warning'}`}>
+                  {socketConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+                  <span>{socketConnected ? 'Connected (Live)' : 'Standby / Polling'}</span>
+                </span>
               </div>
             </div>
           </div>
@@ -113,24 +208,61 @@ export const StaffConsolePage: React.FC = () => {
                   <span>Incoming Screened Call Queue</span>
                 </h5>
                 <span className="badge bg-secondary bg-opacity-25 text-secondary">
-                  0 Active Calls
+                  {incomingCalls.length} Active Calls
                 </span>
               </div>
 
-              {/* Empty state representing honest operational reality */}
-              <div className="text-center py-5 my-3 rounded-3 bg-dark bg-opacity-50 border border-white border-opacity-10">
-                <div className="d-inline-flex p-3 rounded-circle bg-secondary bg-opacity-10 text-muted mb-3">
-                  <Radio size={36} />
+              {incomingCalls.length > 0 ? (
+                <div className="d-flex flex-column gap-3 mb-4">
+                  {incomingCalls.map((call) => (
+                    <div
+                      key={call.id}
+                      className="p-3 rounded-3 bg-dark border border-info border-opacity-50 shadow-sm d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3"
+                    >
+                      <div>
+                        <div className="d-flex align-items-center gap-2 mb-1">
+                          <span className="text-white fw-bold font-monospace">{call.callerNumber}</span>
+                          {call.callerName && <span className="text-muted small">({call.callerName})</span>}
+                          <span className="badge bg-info bg-opacity-25 text-info small">
+                            {call.detectedIntent || 'Inbound'}
+                          </span>
+                        </div>
+                        {call.aiSummary && <p className="text-secondary small mb-0">{call.aiSummary}</p>}
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-success d-flex align-items-center gap-1"
+                          onClick={() => handleAcceptCall(call.id)}
+                        >
+                          <PhoneCall size={14} /> Accept
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
+                          onClick={() => handleRejectCall(call.id)}
+                        >
+                          <PhoneForwarded size={14} /> Send to Voicemail
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <h6 className="text-white fw-bold mb-1">Telephony Gateway Standby</h6>
-                <p className="text-muted small mx-auto mb-3" style={{ maxWidth: '420px' }}>
-                  The reception console is listening. When an inbound caller is screened by the local AI pipeline and routed to your extension, live alerts with a 20-second accept/reject countdown will appear here.
-                </p>
-                <div className="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-dark border border-secondary text-secondary small">
-                  <span className="spinner-grow spinner-grow-sm text-info" role="status" aria-hidden="true" />
-                  <span>Awaiting Phase 5 Socket.IO Connection</span>
+              ) : (
+                <div className="text-center py-5 my-3 rounded-3 bg-dark bg-opacity-50 border border-white border-opacity-10">
+                  <div className="d-inline-flex p-3 rounded-circle bg-secondary bg-opacity-10 text-muted mb-3">
+                    <Radio size={36} />
+                  </div>
+                  <h6 className="text-white fw-bold mb-1">Reception Console Ready</h6>
+                  <p className="text-muted small mx-auto mb-3" style={{ maxWidth: '420px' }}>
+                    The reception console is active and listening for live Socket.IO screening events. When incoming calls are screened by AI and routed to your extension, they will appear here in real time.
+                  </p>
+                  <div className="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill bg-dark border border-secondary text-secondary small">
+                    <span className="spinner-grow spinner-grow-sm text-info" role="status" aria-hidden="true" />
+                    <span>Socket.IO Listener Active</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="p-3 rounded-3 bg-dark border border-white border-opacity-10 text-muted small d-flex flex-column flex-sm-row justify-content-between gap-2">

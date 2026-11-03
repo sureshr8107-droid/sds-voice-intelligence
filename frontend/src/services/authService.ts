@@ -1,5 +1,5 @@
 import { apiClient, normalizeError, NormalizedError } from './apiClient';
-import { AuthenticatedUser } from '@call-screening/shared';
+import { AuthenticatedUser, LoginRequest, LoginResponse } from '@call-screening/shared';
 
 export interface AuthMeResponse {
   user: AuthenticatedUser;
@@ -13,6 +13,41 @@ export interface AuthVerificationResult {
 }
 
 export class AuthService {
+  /**
+   * Authenticate using email and password against POST /api/v1/auth/login
+   */
+  static async login(
+    payload: LoginRequest
+  ): Promise<{ success: boolean; data?: LoginResponse; error?: NormalizedError }> {
+    try {
+      const response = await apiClient.post<LoginResponse>('/auth/login', payload);
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: normalizeError(error),
+      };
+    }
+  }
+
+  /**
+   * Terminate user session and revoke token on backend against POST /api/v1/auth/logout
+   */
+  static async logout(): Promise<{ success: boolean; error?: NormalizedError }> {
+    try {
+      await apiClient.post('/auth/logout');
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: normalizeError(error),
+      };
+    }
+  }
+
   /**
    * Fetch authenticated user profile from backend using in-memory token
    */

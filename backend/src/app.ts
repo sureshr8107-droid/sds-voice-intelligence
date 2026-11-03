@@ -9,7 +9,7 @@ import { requestIdMiddleware } from './middleware/requestId';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health.routes';
-import { authRouter } from './routes/auth.routes';
+import { apiRouter } from './routes';
 
 export function createApp(): Express {
   const app = express();
@@ -83,8 +83,7 @@ export function createApp(): Express {
   app.use(healthRouter);
 
   // 9. API v1 Router
-  app.use(env.API_PREFIX, healthRouter);
-  app.use(env.API_PREFIX, authRouter);
+  app.use(env.API_PREFIX, apiRouter);
 
   // 10. 404 handler
   app.use(notFoundHandler);

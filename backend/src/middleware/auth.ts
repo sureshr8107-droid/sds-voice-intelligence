@@ -3,6 +3,7 @@ import { AuthenticatedUser, UserRole, ApiErrorResponse } from '@call-screening/s
 import { getSupabaseClient, isSupabaseConfigured } from '../config/supabase';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { verifyJwtToken, isTokenBlacklisted } from '../utils/security';
 
 declare global {
   namespace Express {
@@ -38,7 +39,7 @@ const MOCK_USERS: Record<string, AuthenticatedUser> = {
 };
 
 /**
- * Middleware: Verify Supabase JWT token and attach AuthenticatedUser to Request
+ * Middleware: Verify authentication credentials (JWT, token revocation, RBAC)
  */
 export async function authenticateUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -58,95 +59,98 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
 
   const token = authHeader.split(' ')[1];
 
-  // 1. Support offline/test mock tokens in test or development environments
+  // 1. Strict rejection of mock tokens in production environment
+  if (env.NODE_ENV === 'production' && (token.startsWith('mock-') || MOCK_USERS[token])) {
+    logger.warn({ ip: req.ip }, 'Blocked attempted mock token usage in production mode');
+    res.status(401).json({
+      error: {
+        code: 'MOCK_TOKENS_FORBIDDEN',
+        message: 'Mock authentication tokens and test personas are strictly forbidden in production mode.',
+        requestId: req.id ? String(req.id) : undefined,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return;
+  }
+
+  // 2. Check token revocation / blacklist (session invalidation)
+  if (isTokenBlacklisted(token)) {
+    res.status(401).json({
+      error: {
+        code: 'TOKEN_REVOKED',
+        message: 'This authentication token has been revoked / logged out. Please log in again.',
+        requestId: req.id ? String(req.id) : undefined,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    return;
+  }
+
+  // 3. Support offline/test mock tokens in test or development environments
   if ((env.NODE_ENV === 'test' || env.NODE_ENV === 'development') && MOCK_USERS[token]) {
     req.user = MOCK_USERS[token];
     next();
     return;
   }
 
-  // 2. Check if Supabase client is configured
-  if (!isSupabaseConfigured()) {
-    const errorResponse: ApiErrorResponse = {
-      error: {
-        code: 'AUTH_SERVICE_UNAVAILABLE',
-        message: 'Authentication service is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY.',
-        requestId: req.id ? String(req.id) : undefined,
-        timestamp: new Date().toISOString(),
-      },
-    };
-    res.status(503).json(errorResponse);
-    return;
-  }
-
-  const supabase = getSupabaseClient();
-  if (!supabase) {
-    res.status(503).json({
-      error: {
-        code: 'AUTH_CLIENT_ERROR',
-        message: 'Supabase client failed to initialize.',
-        requestId: req.id ? String(req.id) : undefined,
-        timestamp: new Date().toISOString(),
-      },
-    });
-    return;
-  }
-
-  try {
-    // 3. Verify JWT with Supabase Auth
-    const { data: userData, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !userData.user) {
-      logger.warn({ err: authError?.message }, 'Failed to verify Supabase JWT token');
-      res.status(401).json({
-        error: {
-          code: 'INVALID_TOKEN',
-          message: 'The provided authentication token is invalid or expired.',
-          requestId: req.id ? String(req.id) : undefined,
-          timestamp: new Date().toISOString(),
-        },
-      });
-      return;
-    }
-
-    // 4. Fetch user's profile and assigned role from public.profiles
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, role, phone_number, avatar_url')
-      .eq('id', userData.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      // Fallback: If profile row not yet created, use auth metadata
-      req.user = {
-        id: userData.user.id,
-        email: userData.user.email || '',
-        fullName: userData.user.user_metadata?.full_name || userData.user.email || 'User',
-        role: (userData.user.user_metadata?.role as UserRole) || 'staff',
-      };
-    } else {
-      req.user = {
-        id: profile.id,
-        email: profile.email,
-        fullName: profile.full_name,
-        role: profile.role as UserRole,
-        phoneNumber: profile.phone_number || undefined,
-        avatarUrl: profile.avatar_url || undefined,
-      };
-    }
-
+  // 4. Verify signed JWT token (Standard Phase 5 Backend JWT)
+  const verifiedUser = verifyJwtToken(token);
+  if (verifiedUser) {
+    req.user = verifiedUser;
     next();
-  } catch (err) {
-    logger.error({ err }, 'Unexpected error during JWT verification');
-    res.status(500).json({
-      error: {
-        code: 'AUTH_VERIFICATION_ERROR',
-        message: 'An unexpected error occurred while verifying credentials.',
-        requestId: req.id ? String(req.id) : undefined,
-        timestamp: new Date().toISOString(),
-      },
-    });
+    return;
   }
+
+  // 5. Verify against Supabase Auth if Supabase client is configured
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data: userData, error: authError } = await supabase.auth.getUser(token);
+
+        if (!authError && userData.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, email, full_name, role, phone_number, avatar_url')
+            .eq('id', userData.user.id)
+            .single();
+
+          if (profile) {
+            req.user = {
+              id: profile.id,
+              email: profile.email,
+              fullName: profile.full_name,
+              role: profile.role as UserRole,
+              phoneNumber: profile.phone_number || undefined,
+              avatarUrl: profile.avatar_url || undefined,
+            };
+          } else {
+            req.user = {
+              id: userData.user.id,
+              email: userData.user.email || '',
+              fullName: userData.user.user_metadata?.full_name || userData.user.email || 'User',
+              role: (userData.user.user_metadata?.role as UserRole) || 'staff',
+            };
+          }
+
+          next();
+          return;
+        }
+      } catch (err) {
+        logger.error({ err }, 'Error during Supabase token verification fallback');
+      }
+    }
+  }
+
+  // 6. Token invalid or expired
+  res.status(401).json({
+    error: {
+      code: 'INVALID_TOKEN',
+      message: 'The provided authentication token is invalid or expired.',
+      requestId: req.id ? String(req.id) : undefined,
+      timestamp: new Date().toISOString(),
+    },
+  });
 }
 
 /**

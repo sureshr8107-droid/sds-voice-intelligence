@@ -1,5 +1,5 @@
 import { apiClient, normalizeError, NormalizedError } from './apiClient';
-import { CallRecord, CallStatus } from '@call-screening/shared';
+import { CallRecord, CallStatus, UpdateCallStatusRequest } from '@call-screening/shared';
 
 export interface CallFilterParams {
   page?: number;
@@ -7,6 +7,8 @@ export interface CallFilterParams {
   status?: CallStatus | 'all';
   departmentId?: string;
   search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface CallListResponse {
@@ -14,6 +16,7 @@ export interface CallListResponse {
   total: number;
   page: number;
   limit: number;
+  totalPages?: number;
 }
 
 export interface CallStats {
@@ -64,6 +67,21 @@ export class CallService {
   }> {
     try {
       const response = await apiClient.get<CallStats>('/calls/stats');
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: normalizeError(error) };
+    }
+  }
+
+  /**
+   * Transition call status via Call State Machine (PATCH /api/v1/calls/:id/status)
+   */
+  static async updateCallStatus(
+    id: string,
+    payload: UpdateCallStatusRequest
+  ): Promise<{ success: boolean; data?: CallRecord; error?: NormalizedError }> {
+    try {
+      const response = await apiClient.patch<CallRecord>(`/calls/${id}/status`, payload);
       return { success: true, data: response.data };
     } catch (error) {
       return { success: false, error: normalizeError(error) };
