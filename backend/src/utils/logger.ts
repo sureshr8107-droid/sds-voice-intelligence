@@ -1,0 +1,19 @@
+import pino from 'pino';
+import { env } from '../config/env';
+
+export const logger = pino({
+  level: env.LOG_LEVEL,
+  redact: {
+    paths: [
+      'req.headers.authorization',
+      'req.headers.cookie',
+      'password',
+      'secret',
+      'apiKey',
+      'token',
+      'callerNumber', // Keep privacy in logs
+    ],
+    remove: true,
+  },
+  timestamp: pino.stdTimeFunctions.isoTime,
+});
