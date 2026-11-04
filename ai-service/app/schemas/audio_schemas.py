@@ -62,4 +62,3 @@ class HealthResponse(BaseModel):
     version: str = Field(..., description="Service semantic version")
     stt: STTHealthInfo = Field(..., description="STT subsystem status")
     ffmpeg: FFmpegHealthInfo = Field(..., description="FFmpeg subsystem status")
-

@@ -90,4 +90,3 @@ class Settings:
 
 # Singleton settings instance
 settings = Settings()
-
