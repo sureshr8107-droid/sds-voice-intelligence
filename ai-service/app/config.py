@@ -42,6 +42,64 @@ def _resolve_ffmpeg_path() -> str:
     return str(candidates[0])
 
 
+def _resolve_piper_path() -> str:
+    """Resolve Piper binary location safely across workspace and system PATH."""
+    env_path = os.getenv("PIPER_EXECUTABLE_PATH")
+    if env_path and Path(env_path).is_file():
+        return str(Path(env_path).resolve())
+
+    candidates = [
+        BASE_DIR.parent / "tools" / "piper" / "piper.exe",
+        BASE_DIR / "tools" / "piper" / "piper.exe",
+        WORKSPACE_ROOT / "tools" / "piper" / "piper.exe",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+
+    which_path = shutil.which("piper")
+    if which_path:
+        return str(Path(which_path).resolve())
+
+    return str(candidates[0])
+
+
+def _resolve_piper_model_path() -> str:
+    """Resolve default Piper ONNX voice model location."""
+    env_path = os.getenv("PIPER_MODEL_PATH")
+    if env_path and Path(env_path).is_file():
+        return str(Path(env_path).resolve())
+
+    candidates = [
+        BASE_DIR.parent / "tools" / "piper" / "en_US-lessac-medium.onnx",
+        BASE_DIR / "tools" / "piper" / "en_US-lessac-medium.onnx",
+        WORKSPACE_ROOT / "tools" / "piper" / "en_US-lessac-medium.onnx",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+
+    return str(candidates[0])
+
+
+def _resolve_piper_config_path() -> str:
+    """Resolve default Piper ONNX voice model JSON configuration location."""
+    env_path = os.getenv("PIPER_CONFIG_PATH")
+    if env_path and Path(env_path).is_file():
+        return str(Path(env_path).resolve())
+
+    candidates = [
+        BASE_DIR.parent / "tools" / "piper" / "en_US-lessac-medium.onnx.json",
+        BASE_DIR / "tools" / "piper" / "en_US-lessac-medium.onnx.json",
+        WORKSPACE_ROOT / "tools" / "piper" / "en_US-lessac-medium.onnx.json",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+
+    return str(candidates[0])
+
+
 class Settings:
     """Validated runtime configuration for the SDS Voice Intelligence AI Service."""
 
@@ -95,6 +153,16 @@ class Settings:
         self.MAX_TRANSCRIPTION_LENGTH: int = int(os.getenv("MAX_TRANSCRIPTION_LENGTH", "2000"))
         self.INTENT_MAX_CONCURRENT_REQUESTS: int = int(os.getenv("INTENT_MAX_CONCURRENT_REQUESTS", "2"))
         self.INTENT_CONFIDENCE_THRESHOLD: float = float(os.getenv("INTENT_CONFIDENCE_THRESHOLD", "0.6"))
+
+        # Piper TTS Configuration (Phase 6.5)
+        self.PIPER_EXECUTABLE_PATH: str = _resolve_piper_path()
+        self.PIPER_MODEL_PATH: str = _resolve_piper_model_path()
+        self.PIPER_CONFIG_PATH: str = _resolve_piper_config_path()
+        self.PIPER_TIMEOUT_SECONDS: float = float(os.getenv("PIPER_TIMEOUT_SECONDS", "15.0"))
+        self.MAX_TTS_TEXT_LENGTH: int = int(os.getenv("MAX_TTS_TEXT_LENGTH", "1000"))
+        self.DEFAULT_TTS_SPEED: float = float(os.getenv("DEFAULT_TTS_SPEED", "1.0"))
+        self.MIN_TTS_SPEED: float = float(os.getenv("MIN_TTS_SPEED", "0.5"))
+        self.MAX_TTS_SPEED: float = float(os.getenv("MAX_TTS_SPEED", "2.0"))
 
 
 # Singleton settings instance

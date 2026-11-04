@@ -16,6 +16,10 @@ from app.schemas.intent_schemas import (
     IntentClassifyResponse,
     LLMHealthInfo,
 )
+from app.schemas.tts_schemas import (
+    TTSSynthesizeRequest,
+    TTSHealthInfo,
+)
 
 __all__ = [
     "TranscriptionData",
@@ -31,4 +35,6 @@ __all__ = [
     "IntentClassifyRequest",
     "IntentClassifyResponse",
     "LLMHealthInfo",
+    "TTSSynthesizeRequest",
+    "TTSHealthInfo",
 ]

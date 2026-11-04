@@ -25,6 +25,16 @@ from app.services.llm_service import (
     LLMModelNotFoundError,
     LLMResponseValidationError,
 )
+from app.services.piper_service import (
+    PiperService,
+    get_piper_service,
+    TTSServiceError,
+    PiperNotFoundError,
+    VoiceModelNotFoundError,
+    TTSTimeoutError,
+    TTSInvalidInputError,
+    TTSSynthesisError,
+)
 
 __all__ = [
     "AudioService",
@@ -47,4 +57,12 @@ __all__ = [
     "LLMTimeoutError",
     "LLMModelNotFoundError",
     "LLMResponseValidationError",
+    "PiperService",
+    "get_piper_service",
+    "TTSServiceError",
+    "PiperNotFoundError",
+    "VoiceModelNotFoundError",
+    "TTSTimeoutError",
+    "TTSInvalidInputError",
+    "TTSSynthesisError",
 ]

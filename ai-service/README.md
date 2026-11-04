@@ -208,6 +208,50 @@ When Ollama is unreachable, times out, or produces unparseable output, a safe, d
 
 ---
 
+### 4. Text-to-Speech Synthesis (Phase 6.5)
+`POST /api/v1/tts/synthesize`
+
+Synthesizes validated English text into a 22,050 Hz 1-channel, 16-bit PCM WAV audio stream using the local Piper standalone binary (v1.2.0) and `en_US-lessac-medium` ONNX voice model.
+
+#### Request Parameters (JSON):
+- `text` *(string, required)*: Text string to synthesize (1 to 1,000 characters).
+- `speed` *(float, optional)*: Playback speed multiplier between `0.5` and `2.0` (default `1.0`).
+- `voice` *(string, optional)*: Voice model identifier (default `en_US-lessac-medium`).
+
+#### Example Request (cURL):
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/tts/synthesize" \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: test-tts-001" \
+  -d '{
+    "text": "Hello, thank you for calling SDS Voice Intelligence. How may I direct your call?",
+    "speed": 1.0
+  }' \
+  --output synthesized_voice.wav
+```
+
+#### Response:
+- **Status:** HTTP 200 OK
+- **Content-Type:** `audio/wav`
+- **Content-Disposition:** `inline; filename="tts_{id}.wav"`
+- **X-Request-ID:** `test-tts-001`
+- **X-Audio-Duration:** `4.92s`
+- **X-Process-Time:** `0.4520s`
+
+#### Example Error Response (HTTP 400 / 500 / 503 / 504):
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_TTS_INPUT",
+    "message": "Text to synthesize cannot be empty or whitespace only."
+  },
+  "request_id": "test-tts-001"
+}
+```
+
+---
+
 ## Starting Ollama and Managing Models
 
 ### 1. Ensure Ollama is Installed & Running
@@ -233,6 +277,9 @@ Run the full test suite or specific test modules:
 ```powershell
 # From ai-service directory
 
+# Run Phase 6.5 TTS service and route tests
+pytest -v tests/test_piper_service.py tests/test_tts_routes.py
+
 # Run Phase 6.4 LLM and Route tests (mocked, sandboxed)
 pytest -v tests/test_llm_service.py tests/test_intent_routes.py
 
@@ -254,12 +301,15 @@ pytest -v tests/
 - **Entity Verification:** Extracted entities are strictly filtered against the original transcription tokens to eliminate LLM hallucinations.
 - **Deterministic Department Mapping:** The LLM does not assign department routing; departments are strictly mapped via central business rules.
 - **Controlled Urgency & Confidence:** Urgency is constrained to a controlled set (`low`, `normal`, `high`, `critical`) and confidence is numerically clamped between `0.0` and `1.0`.
+- **Subprocess Safety:** Piper executable is invoked with fixed argument lists without `shell=True`, preventing command injection.
+- **Guaranteed Cleanup:** Temporary TTS audio files are automatically unlinked upon completion, error, or timeout via deterministic `finally` blocks.
 - **Zero Cloud Leakage:** All inference executes locally on CPU; no customer speech or data is ever transmitted to third-party APIs.
 
 ---
 
 ## Known Limitations
 
-1. **English Language Only:** The default model `base.en` is an English-only model optimized for rapid telephony routing; non-English speech is decoded into English or rejected.
-2. **Audio Duration Cap:** Telephony utterances are capped at 120 seconds by default to maintain bounded CPU time.
+1. **English Language Only:** The default models (`faster-whisper base.en` and `en_US-lessac-medium`) are English models optimized for telephony routing.
+2. **Audio Duration Cap:** Telephony speech-to-text utterances are capped at 120 seconds, and TTS synthesis text is capped at 1,000 characters to maintain bounded CPU time.
 3. **No Speaker Diarization / Emotion Analysis:** Phase 6.3 is focused purely on telephony speech-to-text; speaker diarization and emotion tagging are not supported by the lightweight base model.
+4. **Local CPU Inference:** Piper TTS synthesizes at RTF ~0.09–0.18 on CPU, well within real-time streaming requirements.

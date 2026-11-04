@@ -13,6 +13,7 @@ from starlette.types import ASGIApp, Scope, Receive, Send
 from app.config import settings
 from app.routes.audio_routes import audio_router, health_router
 from app.routes.intent_routes import intent_router
+from app.routes.tts_routes import tts_router
 from app.schemas.audio_schemas import ErrorResponse, ErrorDetail
 
 
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(audio_router)
     app.include_router(intent_router)
+    app.include_router(tts_router)
 
     @app.get("/", tags=["Root"])
     async def root():
@@ -122,13 +124,14 @@ def create_app() -> FastAPI:
             "service": "SDS Voice Intelligence AI Service",
             "tagline": "Intelligent Calls. Smarter Connections.",
             "version": "0.1.0",
-            "phase": "Phase 6.4 - Intent Classification",
+            "phase": "Phase 6.5 - Text-to-Speech",
             "status": "operational",
             "endpoints": {
                 "health": "/health",
                 "docs": "/docs",
                 "transcribe": "/api/v1/audio/transcribe",
                 "classify_intent": "/api/v1/intent/classify",
+                "synthesize_speech": "/api/v1/tts/synthesize",
             },
         }
 
