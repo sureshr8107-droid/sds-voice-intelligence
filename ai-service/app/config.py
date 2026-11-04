@@ -87,6 +87,15 @@ class Settings:
             ".wma",
         ]
 
+        # Ollama LLM Configuration (Phase 6.4)
+        self.OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+        self.OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+        self.OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "15.0"))
+        self.OLLAMA_TEMPERATURE: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
+        self.MAX_TRANSCRIPTION_LENGTH: int = int(os.getenv("MAX_TRANSCRIPTION_LENGTH", "2000"))
+        self.INTENT_MAX_CONCURRENT_REQUESTS: int = int(os.getenv("INTENT_MAX_CONCURRENT_REQUESTS", "2"))
+        self.INTENT_CONFIDENCE_THRESHOLD: float = float(os.getenv("INTENT_CONFIDENCE_THRESHOLD", "0.6"))
+
 
 # Singleton settings instance
 settings = Settings()

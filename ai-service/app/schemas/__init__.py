@@ -8,6 +8,14 @@ from app.schemas.audio_schemas import (
     STTHealthInfo,
     FFmpegHealthInfo,
 )
+from app.schemas.intent_schemas import (
+    IntentCategory,
+    INTENT_DEPARTMENT_MAP,
+    UrgencyLevel,
+    IntentClassifyRequest,
+    IntentClassifyResponse,
+    LLMHealthInfo,
+)
 
 __all__ = [
     "TranscriptionData",
@@ -17,4 +25,10 @@ __all__ = [
     "HealthResponse",
     "STTHealthInfo",
     "FFmpegHealthInfo",
+    "IntentCategory",
+    "INTENT_DEPARTMENT_MAP",
+    "UrgencyLevel",
+    "IntentClassifyRequest",
+    "IntentClassifyResponse",
+    "LLMHealthInfo",
 ]

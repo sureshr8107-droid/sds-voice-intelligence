@@ -16,6 +16,15 @@ from app.services.whisper_service import (
     get_whisper_service,
     STTServiceError,
 )
+from app.services.llm_service import (
+    LLMService,
+    get_llm_service,
+    LLMServiceError,
+    LLMConnectionError,
+    LLMTimeoutError,
+    LLMModelNotFoundError,
+    LLMResponseValidationError,
+)
 
 __all__ = [
     "AudioService",
@@ -31,4 +40,11 @@ __all__ = [
     "WhisperService",
     "get_whisper_service",
     "STTServiceError",
+    "LLMService",
+    "get_llm_service",
+    "LLMServiceError",
+    "LLMConnectionError",
+    "LLMTimeoutError",
+    "LLMModelNotFoundError",
+    "LLMResponseValidationError",
 ]
