@@ -252,6 +252,81 @@ curl -X POST "http://127.0.0.1:8000/api/v1/tts/synthesize" \
 
 ---
 
+### 5. Full AI Conversation Pipeline (Phase 6.6)
+`POST /api/v1/conversation/process-audio`
+
+Orchestrates the entire local voice conversation pipeline end-to-end:
+1. Validates and normalizes incoming caller audio to 16 kHz Mono WAV via FFmpeg.
+2. Transcribes caller speech to text using local `faster-whisper base.en`.
+3. Classifies caller intent, urgency, and canonical department using local Ollama (`llama3.2:1b`).
+4. Sanitizes caller-facing response text, preventing false transfer announcements and hallucinatory assertions.
+5. Synthesizes high-quality 22,050 Hz 16-bit PCM WAV spoken speech using local Piper TTS (`en_US-lessac-medium`).
+6. Encodes synthesized audio to Base64 and returns structured telephony response payload.
+
+All components execute strictly sequentially with isolated subprocess calls and guaranteed temporary file cleanup.
+
+#### Request Parameters (Multipart Form-Data):
+- `file` *(file, required)*: Caller audio recording (`.wav`, `.mp3`, `.ogg`, `.flac`, `.m4a`, `.aac`, `.webm`, `.wma`) up to 25 MB and 120 seconds duration.
+- `speed` *(float, optional)*: Playback speed for synthesized response speech between `0.5` and `2.0` (default `1.0`).
+
+#### Example Request (cURL):
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/conversation/process-audio" \
+  -H "X-Request-ID: test-call-003" \
+  -F "file=@tests/fixtures/test_16k.wav" \
+  -F "speed=1.0"
+```
+
+#### Example Success Response (HTTP 200):
+```json
+{
+  "success": true,
+  "request_id": "test-call-003",
+  "transcript": "Hello, welcome to SDS voice intelligence. How may I direct your call?",
+  "intent": "general_enquiry",
+  "department": "General Support",
+  "confidence": 0.95,
+  "urgency": "normal",
+  "summary": "Caller greeting and general inquiry.",
+  "response_text": "I would be happy to connect you with our General Support team.",
+  "requires_clarification": false,
+  "clarification_question": null,
+  "fallback_used": false,
+  "audio_metadata": {
+    "format": "wav",
+    "sample_rate": 22050,
+    "channels": 1,
+    "bit_depth": 16,
+    "duration": 3.42,
+    "size_bytes": 150828
+  },
+  "audio": {
+    "format": "wav",
+    "sample_rate": 22050,
+    "channels": 1,
+    "bit_depth": 16,
+    "duration": 3.42,
+    "size_bytes": 150828
+  },
+  "audio_base64": "UklGRswiAgBXQVZFZm10...",
+  "processing_time": 1.482
+}
+```
+
+#### Example Error Response (HTTP 400 / 413 / 500 / 503 / 504):
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_AUDIO_FORMAT",
+    "message": "Unsupported audio format '.txt'. Supported formats: .wav, .mp3, .ogg, .flac, .m4a, .aac, .webm, .wma"
+  },
+  "request_id": "test-call-003"
+}
+```
+
+---
+
 ## Starting Ollama and Managing Models
 
 ### 1. Ensure Ollama is Installed & Running
@@ -276,6 +351,9 @@ llama3.2:1b    baf6a787fd9e    1.3 GB    ...
 Run the full test suite or specific test modules:
 ```powershell
 # From ai-service directory
+
+# Run Phase 6.6 Full Conversation Pipeline tests (mocked & live)
+pytest -v tests/test_conversation_service.py tests/test_conversation_routes.py tests/test_conversation_live.py
 
 # Run Phase 6.5 TTS service and route tests
 pytest -v tests/test_piper_service.py tests/test_tts_routes.py

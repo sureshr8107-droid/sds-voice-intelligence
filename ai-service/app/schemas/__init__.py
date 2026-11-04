@@ -20,6 +20,10 @@ from app.schemas.tts_schemas import (
     TTSSynthesizeRequest,
     TTSHealthInfo,
 )
+from app.schemas.conversation_schemas import (
+    AudioMetadata,
+    ConversationPipelineResponse,
+)
 
 __all__ = [
     "TranscriptionData",
@@ -37,4 +41,6 @@ __all__ = [
     "LLMHealthInfo",
     "TTSSynthesizeRequest",
     "TTSHealthInfo",
+    "AudioMetadata",
+    "ConversationPipelineResponse",
 ]

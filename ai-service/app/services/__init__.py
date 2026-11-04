@@ -35,6 +35,10 @@ from app.services.piper_service import (
     TTSInvalidInputError,
     TTSSynthesisError,
 )
+from app.services.conversation_service import (
+    ConversationService,
+    get_conversation_service,
+)
 
 __all__ = [
     "AudioService",
@@ -65,4 +69,6 @@ __all__ = [
     "TTSTimeoutError",
     "TTSInvalidInputError",
     "TTSSynthesisError",
+    "ConversationService",
+    "get_conversation_service",
 ]
