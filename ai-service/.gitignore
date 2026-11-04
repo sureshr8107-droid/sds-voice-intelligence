@@ -1,0 +1,31 @@
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Audio Files & Temporary Data
+*.wav
+*.mp3
+*.ogg
+*.pcm
+tmp/
+recordings/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Models & Downloaded Weights
+models/
+*.onnx
+*.onnx.json
+*.bin
